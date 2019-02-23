@@ -1,77 +1,73 @@
 package de.comparus.opensource.longmap;
 
-import de.comparus.opensource.longmap.entity.Entry;
-
 import java.lang.reflect.Array;
-import java.util.LinkedList;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-public class LongMapImpl<V> implements LongMap<V> {
+public class LongMapImpl<V> implements LongMap<V>, Iterable<LongMapImpl<V>.Entry<V>> {
+    private final static int DEFAULT_INITIAL_CAPACITY = 8;
+    private final static double DEFAULT_LOAD_FACTOR = 0.75;
 
-    private int capacity = 8;
-    private double loadFactor = 0.75;
-    private LinkedList<Entry<V>>[] buckets;
+    private double loadFactor;
+    private Entry<V>[] buckets;
     private int size;
 
     public LongMapImpl() {
-        init();
-    }
-
-    public LongMapImpl(int capacity, double loadFactor) {
-        this.capacity = capacity;
-        this.loadFactor = loadFactor;
-        init();
+        this(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR);
     }
 
     @SuppressWarnings("unchecked")
-    private void init() {
-        buckets = new LinkedList[capacity];
+    public LongMapImpl(int capacity, double loadFactor) {
+        this.loadFactor = loadFactor;
+        buckets = new Entry[capacity];
     }
 
     public V put(long key, V value) {
-        if (size >= loadFactor * capacity) {
+        if (size >= loadFactor * buckets.length) {
             increaseCapacity();
         }
 
-        Entry<V> newEntry = new Entry<>(key, value);
+        Entry<V> newEntry = new Entry<>(key, value, null);
         Entry<V> entryToUpdate = getEntry(key);
 
         if (entryToUpdate != null) {
-            V oldValue = entryToUpdate.getValue();
-            entryToUpdate.setValue(value);
+            V oldValue = entryToUpdate.value;
+            entryToUpdate.value = value;
             return oldValue;
         }
 
         int index = getBucketIndex(key);
         if (buckets[index] == null) {
-            buckets[index] = new LinkedList<>();
+            buckets[index] = newEntry;
+        } else {
+            Entry<V> vEntry = buckets[index];
+            while (vEntry.next != null) {
+                vEntry = vEntry.next;
+            }
+            vEntry.next = newEntry;
         }
-
-        buckets[index].add(newEntry);
         size++;
         return null;
     }
 
     public V get(long key) {
-        if (size > 0) {
-            Entry<V> currentEntry = getEntry(key);
-            if (currentEntry != null) {
-                return currentEntry.getValue();
-            }
+        Entry<V> currentEntry = getEntry(key);
+        if (currentEntry != null) {
+            return currentEntry.value;
         }
         return null;
     }
 
     public V remove(long key) {
-        if (size > 0) {
-            Entry<V> entryToRemove = getEntry(key);
-
-            if (entryToRemove != null) {
-                buckets[getBucketIndex(key)].remove(entryToRemove);
+        for (Iterator<Entry<V>> iterator = this.iterator(); iterator.hasNext(); ) {
+            Entry<V> entry = iterator.next();
+            if (entry.key == key) {
+                iterator.remove();
                 size--;
-                return entryToRemove.getValue();
+                return entry.value;
             }
         }
-        return null;
+        throw new NoSuchElementException("No element were found with key = " + key);
     }
 
     public boolean isEmpty() {
@@ -83,60 +79,41 @@ public class LongMapImpl<V> implements LongMap<V> {
     }
 
     public boolean containsValue(V value) {
-        if (size > 0) {
-            for (LinkedList<Entry<V>> bucket : buckets) {
-                if (bucket != null) {
-                    for (Entry<V> element : bucket) {
-                        if (element.getValue() == value ||
-                                (value != null && value.equals(element.getValue())))
-                            return true;
-                    }
-                }
+        for (Entry<V> entry : this) {
+            if (entry.value.equals(value)) {
+                return true;
             }
         }
         return false;
     }
 
     public long[] keys() {
-        if (size > 0) {
-            long[] keys = new long[size];
-            int index = 0;
+        long[] keys = new long[size];
+        int index = 0;
 
-            for (LinkedList<Entry<V>> bucket : buckets) {
-                if (bucket != null) {
-                    for (Entry<V> element : bucket) {
-                        keys[index] = element.getKey();
-                        index++;
-                    }
-                }
-            }
-            return keys;
+        for (Entry<V> entry : this) {
+            keys[index] = entry.key;
+            index++;
         }
-        return null;
+
+        return keys;
     }
 
     public V[] values() {
-        if (size > 0) {
-            int index = 0;
+        int index = 0;
 
-            @SuppressWarnings("unchecked")
-            V[] values = (V[]) new Object[size];
+        @SuppressWarnings("unchecked")
+        V[] values = (V[]) new Object[size];
 
-            for (LinkedList<Entry<V>> bucket : buckets) {
-                if (bucket != null) {
-                    for (Entry<V> element : bucket) {
-                        values[index] = element.getValue();
-                        index++;
-                    }
-                }
-            }
-
-            @SuppressWarnings("unchecked")
-            V[] vTypeValues = getGenericArray((Class<V>) values[0].getClass(), size);
-            System.arraycopy(values, 0, vTypeValues, 0, values.length);
-            return vTypeValues;
+        for (Entry<V> entry : this) {
+            values[index] = entry.value;
+            index++;
         }
-        return null;
+
+        @SuppressWarnings("unchecked")
+        V[] vTypeValues = getGenericArray((Class<V>) values[0].getClass(), size);
+        System.arraycopy(values, 0, vTypeValues, 0, values.length);
+        return vTypeValues;
     }
 
     public long size() {
@@ -153,38 +130,35 @@ public class LongMapImpl<V> implements LongMap<V> {
     }
 
     private void increaseCapacity() {
-        capacity *= 2;
+        int newCapacity = buckets.length * 2;
 
         @SuppressWarnings("unchecked")
-        LinkedList<Entry<V>>[] newBuckets = new LinkedList[capacity];
+        Entry<V>[] newBuckets = new Entry[newCapacity];
 
-        for (LinkedList<Entry<V>> bucket : buckets) {
-            if (bucket != null) {
-                for (Entry<V> element : bucket) {
-                    int index = getBucketIndex(element.getKey());
-                    if (newBuckets[index] == null) {
-                        newBuckets[index] = new LinkedList<>();
-                    }
-                    newBuckets[index].add(element);
+        for (Entry<V> entry : this) {
+            int index = getBucketIndex(entry.key);
+            if (newBuckets[index] == null) {
+                newBuckets[index] = entry;
+            } else {
+                Entry<V> listEntry = buckets[index];
+                while (listEntry.next != null) {
+                    listEntry = listEntry.next;
                 }
+                listEntry.next = entry;
             }
         }
+
         buckets = newBuckets;
     }
 
     private int getBucketIndex(long key) {
-        return (int) Math.abs(key % capacity);
+        return (int) Math.abs(key % buckets.length);
     }
 
     private Entry<V> getEntry(long key) {
-        if (size > 0) {
-            LinkedList<Entry<V>> bucket = buckets[getBucketIndex(key)];
-            if (bucket != null) {
-                for (Entry<V> element : bucket) {
-                    if (key == element.getKey()) {
-                        return element;
-                    }
-                }
+        for (Entry<V> entry : this) {
+            if (entry.key == key) {
+                return entry;
             }
         }
         return null;
@@ -195,4 +169,84 @@ public class LongMapImpl<V> implements LongMap<V> {
         E[] arr = (E[]) Array.newInstance(clazz, size);
         return arr;
     }
+
+    @Override
+    public Iterator<Entry<V>> iterator() {
+        return new LongMapIterator();
+    }
+
+    class LongMapIterator implements Iterator<Entry<V>> {
+
+        int index;
+        int bucketIndex;
+        Entry<V> nextEntry;
+        Entry<V> prevEntry;
+
+        @Override
+        public boolean hasNext() {
+            return index < size;
+        }
+
+        @Override
+        public Entry<V> next() {
+            if (!hasNext()) {
+                throw new IllegalStateException();
+            }
+
+            if (nextEntry != null) {
+                Entry<V> currentEntry = nextEntry;
+                nextEntry = nextEntry.next;
+                index++;
+                return currentEntry;
+            }
+
+            Entry<V> bucket = buckets[bucketIndex];
+            while (bucket == null) {
+                bucketIndex++;
+                bucket = buckets[bucketIndex];
+            }
+
+            Entry<V> entry = bucket;
+            if (entry.next == null) {
+                bucketIndex++;
+                prevEntry = null;
+            } else {
+                nextEntry = entry.next;
+                prevEntry = entry;
+            }
+
+            index++;
+            return entry;
+        }
+
+        public void remove() {
+            if (prevEntry == null) {
+                buckets[bucketIndex - 1] = null;
+            } else {
+                prevEntry.next = null;
+            }
+            index--;
+        }
+    }
+
+    class Entry<E> {
+        private long key;
+        private E value;
+        private Entry<E> next;
+
+        Entry(long key, E value, Entry<E> next) {
+            this.key = key;
+            this.value = value;
+            this.next = next;
+        }
+
+        @Override
+        public String toString() {
+            return "Entry{" +
+                    "key=" + key +
+                    ", value=" + value +
+                    '}';
+        }
+    }
+
 }

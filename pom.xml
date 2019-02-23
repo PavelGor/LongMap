@@ -7,8 +7,6 @@
     <groupId>comparus</groupId>
     <artifactId>long-map</artifactId>
     <version>1.0</version>
-    <packaging>jar</packaging>
-    <name>long-map</name>
 
     <build>
         <plugins>
