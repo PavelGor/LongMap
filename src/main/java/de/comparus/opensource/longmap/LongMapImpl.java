@@ -2,7 +2,6 @@ package de.comparus.opensource.longmap;
 
 import java.lang.reflect.Array;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class LongMapImpl<V> implements LongMap<V>, Iterable<LongMapEntry<V>> {
@@ -60,7 +59,7 @@ public class LongMapImpl<V> implements LongMap<V>, Iterable<LongMapEntry<V>> {
                 return entry.value;
             }
         }
-        throw new NoSuchElementException("No element were found with key = " + key);
+        return null;
     }
 
     public boolean isEmpty() {

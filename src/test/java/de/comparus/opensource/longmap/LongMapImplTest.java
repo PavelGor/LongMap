@@ -123,9 +123,9 @@ public class LongMapImplTest {
         assertFalse(longMap.isEmpty());
     }
 
-    @Test(expected = NoSuchElementException.class)
+    @Test
     public void testRemoveEmptyMap() {
-        longMap.remove(0);
+        assertNull(longMap.remove(0));
     }
 
     @Test
@@ -136,9 +136,9 @@ public class LongMapImplTest {
         assertEquals(longMap.size(), 0);
     }
 
-    @Test(expected = NoSuchElementException.class)
+    @Test
     public void testRemoveInvalidKey() {
-        longMap.remove(2);
+        assertNull(longMap.remove(2));
     }
 
     @Test
@@ -199,21 +199,25 @@ public class LongMapImplTest {
 
     @Test
     public void testGetKeys() {
-        for (long i = 0; i < 10; i++) {
+        for (long i = 0; i < 3; i++) {
             longMap.put(i, "str" + i);
         }
         long[] keys = longMap.keys();
-        assertEquals(10, keys.length);
+        assertEquals(3, keys.length);
+        assertEquals(0L, keys[0]);
         assertEquals(1L, keys[1]);
+        assertEquals(2L, keys[2]);
     }
 
     @Test
     public void testGetValues() {
-        for (long i = 0; i < 10; i++) {
+        for (long i = 0; i < 3; i++) {
             longMap.put(i, "str" + i);
         }
         String[] values = longMap.values();
-        assertEquals(10, values.length);
+        assertEquals(3, values.length);
+        assertEquals("str0", values[0]);
         assertEquals("str1", values[1]);
+        assertEquals("str2", values[2]);
     }
 }
